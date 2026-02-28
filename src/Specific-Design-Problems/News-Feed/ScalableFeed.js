@@ -4,12 +4,24 @@ import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { fetchPostsPage } from './api';
 
-/* ------------------ Memoized Row Component ------------------ */
+/* ============================================================
+   Row Component (Single Item Renderer)
+   ------------------------------------------------------------
+   react-window renders ONLY visible rows.
+   This component renders one post at a time.
+   We wrap it with React.memo to avoid unnecessary re-renders.
+============================================================ */
 const Row = memo(({ index, style, data }) => {
+  // data is passed using "itemData" from List
   const post = data[index];
+
+  // If no post exists at this index, render nothing
   if (!post) return null;
 
   return (
+    // IMPORTANT:
+    // We MUST spread "style"
+    // react-window controls row positioning via inline styles
     <div
       style={{
         ...style,
@@ -46,24 +58,53 @@ const Row = memo(({ index, style, data }) => {
   );
 });
 
-/* ------------------ Main Component ------------------ */
+/* ============================================================
+   Main Feed Component
+============================================================ */
 export default function ScalableFeed() {
+
+  /* ------------------------------------------------------------
+     React Query: useInfiniteQuery
+
+     This hook is used when:
+     - You load paginated data
+     - You want infinite scrolling
+
+     Instead of storing pages manually,
+     React Query manages:
+       - loading
+       - caching
+       - pagination
+       - background refetching
+  ------------------------------------------------------------ */
   const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isPending,
+    data,                // Contains all loaded pages
+    fetchNextPage,       // Function to fetch next page
+    hasNextPage,         // Boolean: is more data available?
+    isFetchingNextPage,  // Loading state for next page
+    isPending,           // Initial loading state
     isError,
     error,
   } = useInfiniteQuery({
-    queryKey: ['news-feed'],
-    queryFn: fetchPostsPage,
+    queryKey: ['news-feed'],   // Unique cache key
+    queryFn: fetchPostsPage,   // API function
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextCursor : undefined,
   });
 
-  /* Flatten pages safely */
+  /* ------------------------------------------------------------
+     React Query returns data in this shape:
+
+     data = {
+       pages: [
+         { posts: [...] },
+         { posts: [...] }
+       ],
+       pageParams: [...]
+     }
+
+     We flatten all pages into a single array for rendering.
+  ------------------------------------------------------------ */
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => page.posts ?? []);
@@ -71,10 +112,18 @@ export default function ScalableFeed() {
 
   const itemCount = allPosts.length;
 
-  /* Prefetch before last item (better UX than exact match) */
+  /* ------------------------------------------------------------
+     Infinite Scroll Trigger Logic
+
+     react-window tells us which rows are visible.
+     When user scrolls near bottom,
+     we trigger fetchNextPage().
+  ------------------------------------------------------------ */
   const handleItemsRendered = useCallback(
     ({ visibleStopIndex }) => {
-      const threshold = 5; // load earlier
+
+      const threshold = 5; // Load before reaching last item
+
       if (
         hasNextPage &&
         !isFetchingNextPage &&
@@ -86,36 +135,51 @@ export default function ScalableFeed() {
     [hasNextPage, isFetchingNextPage, itemCount, fetchNextPage]
   );
 
+  /* ---------------- Initial Loading State ---------------- */
   if (isPending) {
     return <div style={{ padding: 20 }}>Loading...</div>;
   }
 
+  /* ---------------- Error State ---------------- */
   if (isError) {
     return <div style={{ padding: 20 }}>Error: {error.message}</div>;
   }
 
+  /* ---------------- Empty State ---------------- */
   if (itemCount === 0) {
     return <div style={{ padding: 20 }}>No posts found</div>;
   }
 
+  /* ============================================================
+     Rendering the Virtualized List
+  ============================================================ */
   return (
     <div
       style={{
-        height: '100vh',
+        height: '100vh', // Must have height for AutoSizer
         width: '100%',
         background: '#f3f4f6',
         display: 'flex',
       }}
     >
+      {/* --------------------------------------------------------
+         AutoSizer
+
+         Automatically detects available height & width
+         and passes it to List.
+
+         IMPORTANT:
+         Parent must have fixed height.
+      -------------------------------------------------------- */}
       <AutoSizer>
         {({ height, width }) => (
           <List
-            height={height}
-            width={width}
+            height={height}     // visible container height
+            width={width}       // visible container width
             itemCount={itemCount}
-            itemSize={140}
-            itemData={allPosts}
-            overscanCount={5}
+            itemSize={140}      // fixed row height (important)
+            itemData={allPosts} // data passed to Row
+            overscanCount={5}   // render extra rows for smooth scroll
             onItemsRendered={handleItemsRendered}
           >
             {Row}
@@ -123,6 +187,7 @@ export default function ScalableFeed() {
         )}
       </AutoSizer>
 
+      {/* Loading indicator while fetching next page */}
       {isFetchingNextPage && (
         <div
           style={{
