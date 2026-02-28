@@ -1,0 +1,37 @@
+For our first frontend system design challenge, let's tackle a classic: The Infinite Scroll News Feed.
+
+This is a staple in interviews (Facebook/LinkedIn style) because it tests your ability to handle asynchronous data fetching, DOM performance (virtualization), state management, and UX patterns like loading states and error handling.
+
+We will use React with a custom Intersection Observer hook for the most robust, performant solution.
+
+The Problem: Infinite Scroll News Feed
+Goal: Build a performant feed that fetches and appends data as the user scrolls to the bottom.
+
+Key Requirements:
+Efficiency: Use Intersection Observer instead of scroll listeners to avoid main-thread jank.
+
+State Management: Track items, loading status, page number, and hasMore flag.
+
+UX: Show a loading spinner at the bottom and handle "End of Content."
+
+Mock Data: Generate realistic-looking posts locally.
+
+Deep Dive Explanation
+Why Intersection Observer?
+In a system design interview, if you say "I'll use the window.onscroll event," the interviewer will likely grill you on performance. Scroll events fire dozens of times per second, which can cause layout thrashing.
+
+The Better Way: IntersectionObserver is a browser API that asynchronously observes when an element enters the viewport. It's much more efficient because the browser handles the timing, not your JS code.
+
+Handling State & Race Conditions
+The lastPostElementRef: We use a useCallback instead of a standard useRef. This ensures that every time the list changes, the observer is detached from the old "last item" and attached to the new one.
+
+Loading Check: We check if (loading) return inside the observer callback. This prevents multiple simultaneous API calls if the user triggers the intersection multiple times quickly (de-bouncing the logic).
+
+Scalability (Beyond the Code)
+If this were a real production app, we would discuss:
+
+Windowing/Virtualization: If the list grows to 10,000 items, the DOM will slow down. We'd use react-window to only render the items currently visible on the screen.
+
+Caching: Using React Query or SWR to cache previously fetched pages so the user doesn't re-fetch when clicking "Back."
+
+Skeleton Screens: Instead of "Loading...", show greyed-out boxes to improve perceived performance.

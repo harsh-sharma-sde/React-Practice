@@ -1,24 +1,25 @@
-import logo from './logo.svg';
-import './App.css';
+// import InfiniteFeed from './Specific-Design-Problems/Infinite-Scroll/InfiniteFeed';
+import ScalableFeed from './Specific-Design-Problems/News-Feed/ScalableFeed';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+
+// 1. Create a client instance (keep this outside the component to avoid re-renders)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+      retry: 1,                 // Retry failed requests once
+    },
+  },
+});
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <div style={{ height: '100vh' }}>
+        <ScalableFeed />
+      </div>
+    </QueryClientProvider>
   );
 }
 
