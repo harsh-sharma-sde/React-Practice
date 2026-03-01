@@ -1,8 +1,243 @@
-html, body, #root {
-  height: 100%;
-  margin: 0;
+:root {
+  --netflix-black: #141414;
+  --netflix-dark-gray: #181818;
+  --netflix-light-gray: #b3b3b3;
+  --netflix-red: #e50914;
+  --white: #ffffff;
 }
 
-.App {
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--netflix-black);
+  color: var(--white);
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 4%;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 10%, rgba(0,0,0,0));
+  transition: background-color 0.3s;
+}
+
+.navbar.scrolled {
+  background-color: var(--netflix-black);
+}
+
+.logo {
+  color: var(--netflix-red);
+  font-size: 2rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 20px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.btn-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Hero Section */
+.hero {
+  height: 80vh;
+  position: relative;
+  background-image: url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c7-10e1-40af-bcae-07a3f8dc141a/f6d7434e-d6de-4185-a6d4-c77a2d08737b/US-en-20220502-popsignuptwoweeks-perspective_alpha_website_medium.jpg');
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+}
+
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   height: 100%;
+  background: linear-gradient(to top, var(--netflix-black), transparent 50%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  padding-left: 4%;
+  max-width: 600px;
+}
+
+.hero-title {
+  font-size: 4rem;
+  margin-bottom: 10px;
+  font-weight: 800;
+}
+
+.hero-desc {
+  font-size: 1.2rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.btn-play {
+  background-color: var(--white);
+  color: black;
+  border: none;
+  padding: 12px 30px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: opacity 0.2s;
+}
+
+.btn-play:hover {
+  opacity: 0.8;
+}
+
+/* Video Grid */
+.section-title {
+  padding-left: 4%;
+  margin-top: -50px; /* Pull up over hero gradient */
+  position: relative;
+  z-index: 20;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  padding: 0 4% 50px 4%;
+  position: relative;
+  z-index: 20;
+}
+
+.video-card {
+  background-color: var(--netflix-dark-gray);
+  aspect-ratio: 16/9;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+}
+
+.video-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+  z-index: 30;
+}
+
+.thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;
+}
+
+.video-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.video-card:hover .video-info {
+  opacity: 1;
+}
+
+/* Full Screen Player Overlay */
+.player-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: black;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.back-btn {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  background: transparent;
+  color: white;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+/* Upload Modal */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 200;
+}
+
+.modal-content {
+  background: var(--netflix-dark-gray);
+  padding: 40px;
+  border-radius: 8px;
+  width: 400px;
+  text-align: center;
+}
+
+.upload-box {
+  border: 2px dashed var(--netflix-light-gray);
+  padding: 40px;
+  margin: 20px 0;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--netflix-red);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
 }
