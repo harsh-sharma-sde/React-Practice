@@ -1,0 +1,82 @@
+Designing an image-heavy platform like Pinterest or Instagram at an SDE3 level requires shifting focus from "how to display an image" to "how to manage petabytes of data and billions of concurrent requests."
+
+Here is a high-level system design focusing on the masonry layout and lazy loading at scale.
+
+---
+
+## 1. High-Level Architecture
+
+To handle massive scale, we decouple the **Write Path** (uploading) from the **Read Path** (browsing).
+
+* **Content Delivery Network (CDN):** Essential for reducing latency. Images are cached at edge locations.
+* **Object Store:** S3 or GCS for raw and processed image storage.
+* **Metadata DB:** PostreSQL or Cassandra to store image URLs, dimensions (crucial for masonry), and user metadata.
+
+---
+
+## 2. The Masonry Layout Problem
+
+The core challenge of a masonry layout is that the client needs to know the **aspect ratio** of an image *before* it downloads to prevent "layout shift" (content jumping as images load).
+
+### The SDE3 Solution: Metadata Pre-fetching
+
+* **Store Dimensions:** During the upload process, an image processing service extracts width and height. These are stored in the Metadata DB.
+* **The API Response:** When the client requests a feed, the server sends the image URL **plus** its original dimensions:
+```json
+{
+  "id": "img_123",
+  "url": "https://cdn.example.com/path/to/image.jpg",
+  "aspect_ratio": 0.66,
+  "placeholder_blurhash": "L6PZfSa_d9jt_N%Mt7Js9fayARf8"
+}
+
+```
+
+
+* **Client-Side Calculation:** The client calculates the height based on a fixed column width ($Height = \frac{Width}{Aspect Ratio}$) and carves out the space in the UI before the image even starts fetching.
+
+---
+
+## 3. Intelligent Lazy Loading
+
+Basic `loading="lazy"` isn't enough for SDE3. We need a tiered approach.
+
+### Implementation Strategies:
+
+1. **Intersection Observer API:** Only trigger the network request when the image container is $\approx 200px$ from the viewport.
+2. **Low-Quality Image Placeholders (LQIP):** * **BlurHash:** Store a tiny (20-30 byte) string that represents a blurred version of the image. The client renders this instantly via canvas.
+* **Progressive JPEGs:** Encode images so they render a blurry version first and sharpen as data arrives.
+
+
+3. **Prioritization:** Images in the immediate viewport get "High" priority, while images 2 pages down get "Low" or are queued.
+
+---
+
+## 4. Scalability and Optimization
+
+### Image Transformation Service
+
+Don't serve the original 10MB upload. Use a dynamic transformation service (or a third-party like Cloudinary/Thumbor).
+
+* **WebP/Avif Conversion:** Reduce file size by 30% compared to JPEG.
+* **Resizing on the fly:** Serve `width=400` for mobile and `width=800` for desktop using the `srcset` attribute.
+
+### Database Sharding
+
+As the "Pins" or "Posts" table grows into the billions, shard by `User_ID`. This ensures that all data for a specific user's feed is likely co-located, making "More from this user" queries extremely fast.
+
+### Caching Strategy
+
+* **Write-around Cache:** Use Redis to store the "Global Feed" or "Trending" metadata.
+* **CDN Invalidation:** Use long-lived URLs with hashes (e.g., `image_v1.jpg`). If an image is edited, upload it as `image_v2.jpg` instead of trying to clear global CDN caches.
+
+---
+
+## 5. Performance Metrics to Track
+
+* **LCP (Largest Contentful Paint):** How fast the main image appears.
+* **CLS (Cumulative Layout Shift):** Ensuring the masonry grid doesn't "jump" (targeted via pre-calculated aspect ratios).
+* **Egress Costs:** Monitoring CDN costs is a business-critical SDE3 responsibility.
+
+---
+

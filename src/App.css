@@ -241,3 +241,31 @@ body {
   cursor: pointer;
   width: 100%;
 }
+
+.container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* SDE3: Use CSS Columns for efficient masonry performance */
+/* Grid/Flexbox masonry requires heavy JS calculations; columns are native */
+.masonry-grid {
+    column-count: 3;
+    column-gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .masonry-grid { column-count: 2; }
+}
+
+@media (max-width: 600px) {
+    .masonry-grid { column-count: 1; }
+}
+
+/* Ensure cards don't break across columns */
+.masonry-grid > div {
+    break-inside: avoid;
+    display: inline-block;
+    width: 100%;
+}
