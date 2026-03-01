@@ -1,7 +1,7 @@
 // import InfiniteFeed from './Specific-Design-Problems/Infinite-Scroll/InfiniteFeed';
-import ScalableFeed from './Specific-Design-Problems/News-Feed/ScalableFeed';
+// import ScalableFeed from './Specific-Design-Problems/News-Feed/ScalableFeed';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
+import RealTimeChat from './Specific-Design-Problems/Chat-App/RealTimeChat';
 
 // 1. Create a client instance (keep this outside the component to avoid re-renders)
 const queryClient = new QueryClient({
@@ -17,7 +17,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div style={{ height: '100vh' }}>
-        <ScalableFeed />
+        {/* <ScalableFeed /> */}
+        <RealTimeChat/>
       </div>
     </QueryClientProvider>
   );
