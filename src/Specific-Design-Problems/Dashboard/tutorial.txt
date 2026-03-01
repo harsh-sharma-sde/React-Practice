@@ -1,0 +1,65 @@
+Designing a dashboard for an SDE3-level interview requires a focus on **efficiency**, **performance isolation**, and **fault tolerance**. When dealing with real-time data and heavy calculations, the goal is to keep the main thread (the UI) responsive while managing a high volume of data.
+
+---
+
+## 1. High-Level Architecture
+
+To ensure scalability, we separate the data ingestion from the data processing and the UI rendering.
+
+* **Transport Layer:** WebSockets (Bi-directional) or Server-Sent Events (SSE) for low-latency updates. Long polling as a fallback.
+* **Orchestration Layer:** A "Manager" in the main thread that receives data and delegates work.
+* **Computational Layer:** A pool of **Web Workers** to handle heavy lifting without blocking the UI.
+* **State Management:** Normalized store (like Redux or a reactive signal-based store) to prevent redundant re-renders.
+
+---
+
+## 2. Real-Time Data & Polling Strategy
+
+Scaling real-time data isn't just about speed; it's about **data governance**.
+
+* **Throttling & Debouncing:** If the server pushes 100 updates per second, the UI shouldn't try to render 100 times. We buffer updates and "flush" them to the UI at 60fps or less.
+* **Adaptive Polling:** If the WebSocket drops, the system should fall back to intelligent polling. Use **Exponential Backoff** to prevent DDOSing your own backend during a recovery phase.
+* **Delta Updates:** Only send what changed (JSON patches) instead of the full dataset to save bandwidth.
+
+---
+
+## 3. Offloading with Web Workers
+
+The "Heavy Calculations" requirement is the biggest bottleneck. We use an **Offscreen Canvas** or a **Worker Pool**.
+
+### The Worker Strategy:
+
+* **Transferables:** Use `ArrayBuffer` or `MessagePort` to transfer data between the main thread and workers. This avoids the "Structured Clone" overhead, which can be expensive for large datasets.
+* **Task Partitioning:** Break down massive calculations into smaller chunks.
+* **Worker Pool:** Don't spawn a worker for every task. Maintain a pool (typically based on `navigator.hardwareConcurrency`) to manage lifecycle and memory.
+
+---
+
+## 4. Visualization & Rendering Scalability
+
+At SDE3 level, you must address **DOM exhaustion**.
+
+| Feature | Scaling Technique |
+| --- | --- |
+| **High Frequency Charts** | Use **Canvas API** or **WebGL** instead of SVG. SVGs create too many DOM nodes, leading to memory leaks. |
+| **Long Lists** | Implement **Virtual Scrolling** (Windowing) to only render what's in the viewport. |
+| **Calculations** | Use **Memoization** at the worker level so repetitive data doesn't trigger re-computation. |
+
+---
+
+## 5. Performance Metrics (Observability)
+
+A scalable system is useless if you can't see where it's breaking.
+
+* **INP (Interaction to Next Paint):** Monitor this to ensure Web Workers are actually keeping the main thread free.
+* **Worker Latency:** Track how long messages take to travel between threads.
+* **Memory Leaks:** Implement a cleanup strategy for Web Workers (terminating idle workers) and clearing stale data from the state.
+
+---
+
+## 6. SDE3 "Pro-Tips" for the Interview:
+
+* **Backpressure Handling:** Mention how the client signals the server to slow down if the Web Worker queue is getting too backed up.
+* **Service Workers:** Mention using them for caching the dashboard's static assets and offline capabilities.
+* **Wasm (WebAssembly):** For *extreme* calculations (e.g., complex financial modeling), suggest moving the Worker logic from JS to Wasm for near-native speed.
+
