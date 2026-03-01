@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import VideoStreaming from './Specific-Design-Problems/Video-Streaming/VideoStreaming';
+import SearchComponent from './Specific-Design-Problems/Typeahead-Search-System/SearchComponent';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -15,7 +16,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <VideoStreaming />
+      <SearchComponent />
     </QueryClientProvider>
   );
 }
