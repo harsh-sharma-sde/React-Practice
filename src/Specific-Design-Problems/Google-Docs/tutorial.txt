@@ -1,0 +1,578 @@
+Perfect. This is a **top-tier SDE3 / Staff-level system design** question.
+
+Design:
+
+> **Google Docs – Real-time Collaborative Editing**
+> Using **Operational Transformation (OT)** or **CRDTs**, with scalability, consistency, offline mode, and millions of concurrent users.
+
+We’ll design this at production scale like **Google Docs**.
+
+---
+
+# 1️⃣ Requirements
+
+## Functional
+
+* Multiple users edit same document in real time
+* Changes visible within <100ms
+* Cursor presence indicators
+* Undo/Redo
+* Version history
+* Comments & suggestions mode
+* Offline editing
+* Access control (view/comment/edit)
+
+## Non-Functional
+
+* Strong eventual consistency
+* Low latency globally
+* Handle 100K+ concurrent users on one doc (rare but possible)
+* Horizontal scalability
+* Conflict-free edits
+* Data durability (no data loss)
+
+---
+
+# 2️⃣ Core Technical Problem
+
+When 2 users edit the same document at same time:
+
+```
+Initial: "Hello"
+
+User A inserts "X" at position 0
+User B inserts "Y" at position 0
+```
+
+Final result must be deterministic.
+
+This is solved using:
+
+* OT (Operational Transformation)
+* OR
+* CRDT (Conflict-free Replicated Data Types)
+
+---
+
+# 3️⃣ High-Level Architecture
+
+```
+Clients (Web/Mobile)
+       |
+       v
+Global Load Balancer
+       |
+       v
+Realtime Collaboration Service (WebSocket)
+       |
+       v
+Operation Processor (OT/CRDT Engine)
+       |
+       v
+Document Store
+       |
+       v
+Versioning & Snapshot Store
+```
+
+---
+
+# 4️⃣ Communication Layer
+
+Use:
+
+* WebSockets (bidirectional, low latency)
+* Fallback to long polling
+
+Each document gets a **collaboration room**.
+
+When user opens doc:
+
+* Client establishes WebSocket
+* Joins document session
+* Receives latest snapshot + operations after it
+
+---
+
+# 5️⃣ Operational Transformation (OT)
+
+### Concept
+
+Instead of modifying document directly:
+
+* We send operations.
+
+Example:
+
+```
+Insert(position=5, char="A")
+Delete(position=10)
+```
+
+### Transformation
+
+If two operations conflict, server transforms one against the other.
+
+Example:
+
+User A:
+
+```
+Insert(0, "X")
+```
+
+User B:
+
+```
+Insert(0, "Y")
+```
+
+Server transforms B:
+
+```
+Insert(1, "Y")
+```
+
+Final:
+
+```
+"XYHello"
+```
+
+---
+
+## OT Architecture
+
+```
+Client A ----\
+               ---> OT Server ---> Broadcast transformed op
+Client B ----/
+```
+
+### Pros
+
+* Works well in centralized server model
+* Efficient
+* Proven (Google Docs initially used OT)
+
+### Cons
+
+* Hard to implement correctly
+* Transformation matrix grows complex
+* Difficult for peer-to-peer
+
+---
+
+# 6️⃣ CRDT (Modern Approach)
+
+CRDT avoids transformation.
+
+Each character has:
+
+```
+(uniqueID, value)
+```
+
+Instead of position-based editing:
+We use ID-based ordering.
+
+Example:
+
+```
+H(id1) e(id2) l(id3)
+```
+
+Insert X between id1 and id2:
+
+```
+New ID: id1.5
+```
+
+No conflicts because:
+
+* Every insert has unique ID
+* Merging is deterministic
+
+---
+
+## CRDT Types Used
+
+* RGA (Replicated Growable Array)
+* LSEQ
+* Logoot
+* Yjs (popular implementation)
+
+---
+
+## Why Modern Systems Prefer CRDT
+
+* Better offline support
+* Peer-to-peer friendly
+* No central transformation logic
+* Easier distributed merging
+
+---
+
+# 7️⃣ Data Model
+
+We don’t store plain string.
+
+We store:
+
+```
+Document {
+   docId
+   operations_log[]
+   snapshots[]
+   current_version
+}
+```
+
+---
+
+# 8️⃣ Operation Flow
+
+### When User Types
+
+1. Local apply (optimistic update)
+2. Send operation to server
+3. Server:
+
+   * Validate
+   * Apply to canonical doc
+   * Broadcast to other users
+4. Others merge operation
+
+Latency target: <100ms
+
+---
+
+# 9️⃣ Scalability Strategy
+
+## Problem: Millions of Docs Open Simultaneously
+
+Solution:
+
+### Sharding by documentId
+
+```
+hash(docId) → collaboration node
+```
+
+Each doc handled by one primary node.
+
+---
+
+## Sticky Sessions
+
+User must connect to same doc server.
+Use:
+
+* Consistent hashing
+* Redis pub/sub for cross-node broadcast
+
+---
+
+## Handling Hot Documents (100K concurrent users)
+
+For large docs:
+
+* Use fanout tree broadcasting
+* Use Kafka-style internal streaming
+* Split document into sections (paragraph-level sharding)
+
+---
+
+# 🔟 Storage Strategy
+
+## Primary Storage
+
+* Distributed database (Spanner-like or Cassandra)
+* Append-only operation log
+
+## Snapshotting
+
+To avoid replaying 1M operations:
+
+* Every 1000 operations → create snapshot
+* On load:
+
+  * Load latest snapshot
+  * Replay only recent ops
+
+---
+
+# 1️⃣1️⃣ Offline Editing
+
+CRDT shines here.
+
+When offline:
+
+* Client continues generating operations
+* Stores locally
+* When reconnect:
+
+  * Send ops to server
+  * Merge automatically
+
+No conflicts.
+
+---
+
+# 1️⃣2️⃣ Undo/Redo
+
+Do not reverse document.
+
+Instead:
+
+* Store operation history per user
+* Generate inverse operation
+
+Example:
+
+```
+Insert(5,"A")
+Undo → Delete(5)
+```
+
+---
+
+# 1️⃣3️⃣ Cursor Presence
+
+We don't sync document only.
+
+Also sync:
+
+* Cursor position
+* Selection range
+* User name/color
+
+Presence updates:
+
+* High frequency
+* Do not persist
+* Use ephemeral pub/sub
+
+---
+
+# 1️⃣4️⃣ Version History
+
+Maintain:
+
+```
+Major versions
+Minor autosave versions
+```
+
+Implementation:
+
+* Snapshot tree (like Git)
+* Each save → snapshot pointer
+
+Allow:
+
+* Compare versions
+* Restore old version
+
+---
+
+# 1️⃣5️⃣ Consistency Model
+
+We aim for:
+
+Eventual consistency with causal ordering.
+
+Guarantees:
+
+* All users converge to same state.
+* No lost updates.
+* Order deterministic.
+
+---
+
+# 1️⃣6️⃣ Failure Handling
+
+### If collaboration server crashes:
+
+* Reconnect to another node
+* Load snapshot
+* Replay operations
+
+### If network partitions:
+
+* Offline mode
+* CRDT merge on reconnect
+
+---
+
+# 1️⃣7️⃣ Performance Optimizations
+
+* Binary operation encoding (Protobuf)
+* Delta compression
+* Batch operations (combine keystrokes)
+* Adaptive throttling
+* WebAssembly-based CRDT engine
+
+---
+
+# 1️⃣8️⃣ Security
+
+* Per-doc access tokens
+* Role-based access
+* End-to-end encryption (optional)
+* Audit logs
+
+---
+
+# 1️⃣9️⃣ Monitoring Metrics
+
+* Operation latency
+* Conflict resolution rate
+* Reconnect rate
+* Replayed operations count
+* Hot document detection
+
+---
+
+# 2️⃣0️⃣ OT vs CRDT (Interview Comparison)
+
+| Feature       | OT   | CRDT         |
+| ------------- | ---- | ------------ |
+| Centralized   | Yes  | Not required |
+| Offline       | Hard | Easy         |
+| Complexity    | High | Moderate     |
+| Deterministic | Yes  | Yes          |
+| Peer-to-peer  | Poor | Excellent    |
+
+---
+
+# 2️⃣1️⃣ What Google Docs Likely Does Today
+
+Originally:
+
+* OT-based
+
+Modern systems:
+
+* Hybrid OT + CRDT techniques
+* Advanced sharding
+* Massive distributed infra
+
+---
+
+# 🎯 Final Architecture (SDE3 Level)
+
+```
+Client
+   |
+WebSocket Gateway
+   |
+Collaboration Engine (CRDT/OT)
+   |
+Distributed Operation Log (Kafka-like)
+   |
+Document Store (Sharded DB)
+   |
+Snapshot Store
+```
+
+---
+
+# 🧠 If Interviewer Pushes Further
+
+Be ready to answer:
+
+* How do you handle 1MB+ documents?
+* How do you prevent operation log explosion?
+* How do you detect malicious operations?
+* How do you implement comments layer?
+* How do you support structured documents (tables, images)?
+* How do you support mobile low bandwidth?
+
+---
+
+For an SDE3-level frontend system design interview, focusing on the "Frontend Only" aspect means you are deep-diving into the **Client-Side State Management**, **Conflict Resolution Logic**, and the **Local First** architecture.
+
+While Google Docs historically used **Operational Transformation (OT)**, modern distributed systems are increasingly leaning toward **CRDTs (Conflict-free Replicated Data Types)** due to their ability to work without a central "truth" server.
+
+Here is how you design a CRDT-based collaborative editor on the frontend.
+
+---
+
+## 1. Core Architecture: The "Local-First" Flow
+
+In a frontend-centric design, the client is the source of truth. The "backend" is treated merely as a relay or a dumb storage pipe.
+
+### The Component Stack
+
+* **Editor Surface:** (e.g., TipTap, Quill, or a custom `contenteditable`). This captures user input.
+* **Shared Model (The CRDT):** A specialized data structure (like Yjs or Automerge) that represents the document.
+* **Awareness/Presence:** A sub-module to handle transient data like cursor positions and "User is typing..." labels.
+* **Sync Provider:** A WebSocket or WebRTC abstraction that broadcasts local changes to peers.
+
+---
+
+## 2. Data Structure Selection: Why CRDT?
+
+Since we are removing the backend logic, **OT is difficult** because it requires a central server to sequence operations ($Op_1$ vs $Op_2$) and transform them. **CRDTs** are better for frontend-heavy designs because:
+
+* **Commutativity:** Operations can be applied in any order and still result in the same state.
+* **Idempotency:** The same operation can be applied multiple times without error.
+
+### Using a List CRDT (e.g., Yjs / LSEQ)
+
+To represent a string "CAT", we don't use indices (0, 1, 2). If two people type at the same time, indices shift and break. Instead, we use **Fractional Indexing**.
+
+* **'C'** is assigned ID `0.5`
+* **'A'** is assigned ID `0.75`
+* If User A inserts **'H'** between them, it gets ID `0.625`.
+
+---
+
+## 3. High-Level Frontend Design
+
+| Module | Responsibility |
+| --- | --- |
+| **View Layer** | Renders the characters based on the CRDT state. Must be efficient (virtualization for large docs). |
+| **Transaction Manager** | Intercepts keystrokes, converts them into CRDT operations (e.g., `insert(index, char, attributes)`). |
+| **Conflict Engine** | Merges incoming remote operations into the local data structure using Lamport Timestamps. |
+| **History Manager** | Handles Undo/Redo by tracking local "Checkpoints" rather than just simple state snapshots. |
+
+---
+
+## 4. Solving the "SDE3" Problems
+
+### A. Performance & The Main Thread
+
+Running CRDT logic on every keystroke can lag the UI.
+
+* **Solution:** Offload the CRDT engine to a **Web Worker**.
+* The Main Thread handles the DOM/User Input.
+* The Worker handles the heavy computation of merging remote changes and calculating the new document state.
+
+### B. Memory Management (The Tombstone Problem)
+
+When you delete text in a CRDT, you can't just "erase" it; you often leave a "tombstone" to ensure conflict resolution works later.
+
+* **Solution:** Implement **State Vector Inference**. Periodically "garbage collect" or snapshot the state once all peers have acknowledged a specific sequence number.
+
+### C. Rich Text Support
+
+Representing bold/italic in a CRDT is tricky.
+
+* **Approach:** Use **Formatting Ranges**. Store attributes as separate metadata nodes that "wrap" character IDs.
+* Example: `{ bold: true, start: ID_1, end: ID_10 }`.
+
+
+
+---
+
+## 5. Summary of the Logic
+
+1. **User types 'X':** The editor sends an event to the Transaction Manager.
+2. **Generate Op:** Create a JSON object: `{ type: 'insert', char: 'X', id: unique_lamport_id() }`.
+3. **Local Apply:** Update the local CRDT model immediately (Optimistic UI).
+4. **Broadcast:** Send the Op via WebRTC/WebSocket to all connected peers.
+5. **Remote Merge:** Peers receive the Op, integrate it into their tree, and the View Layer re-renders the specific line.
+
+Would you like me to dive deeper into the **Fractional Indexing** math or draft a **TypeScript interface** for the CRDT node structure?

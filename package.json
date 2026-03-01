@@ -10,13 +10,18 @@
     "@testing-library/user-event": "^13.5.0",
     "browser-image-compression": "^2.0.2",
     "minisearch": "^7.2.0",
+    "quill": "^2.0.3",
+    "quill-cursors": "^4.0.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-intersection-observer": "^10.0.3",
     "react-scripts": "5.0.1",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "y-quill": "^1.0.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.29"
   },
   "scripts": {
     "start": "react-scripts start",
