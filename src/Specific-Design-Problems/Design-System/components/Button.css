@@ -1,0 +1,17 @@
+.ds-button {
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  /* Use the variables set by ThemeContext.js */
+  background-color: var(--ds-color-primary);
+  color: var(--ds-color-text);
+  padding: var(--ds-spacing-unit);
+  border-radius: 4px;
+}
+
+.ds-button:hover {
+  opacity: 0.8;
+}
+
+.ds-button--sm { font-size: 12px; }
+.ds-button--md { font-size: 16px; }

@@ -1,0 +1,89 @@
+Designing a design system for an SDE3 interview requires moving beyond "how to build a button" and focusing on **architecture, distribution, and governance.** At this level, the goal is to enable hundreds of engineers to ship consistent, accessible UI without creating a bottleneck.
+
+---
+
+## 1. Core Architecture: The "Multi-Package" Approach
+
+To ensure scalability, we shouldn't build a single monolithic library. Instead, we use a **monorepo** (e.g., Turborepo or Nx) to split the system into layers.
+
+* **Design Tokens:** The "source of truth" (colors, spacing, typography) stored in JSON/YAML.
+* **Component Library:** Framework-specific implementations (React, Vue, or Web Components).
+* **Icons & Assets:** Optimized SVG sets with tree-shaking support.
+* **Utils/Hooks:** Logic for focus management, media queries, and state.
+
+---
+
+## 2. Theming: Design Tokens & CSS Variables
+
+Scalable theming relies on **Design Tokens**. We avoid hardcoding hex codes. Instead, we use a three-tier system:
+
+1. **Global/Primitive Tokens:** `blue-500: #2196F3`
+2. **Alias/Semantic Tokens:** `brand-primary: $blue-500`
+3. **Component-Specific Tokens:** `button-bg: $brand-primary`
+
+**Implementation Strategy:**
+
+* Use **Style Dictionary** to transform JSON tokens into CSS Variables, SCSS, or TS constants.
+* **Dark Mode/Theming:** Switch themes by swapping a data-attribute (e.g., `data-theme="dark"`) which updates the CSS variable values at the `:root` level. This prevents "Flash of Unstyled Content" (FOUC) and keeps the bundle small.
+
+---
+
+## 3. Accessibility (ARIA) & Robustness
+
+For SDE3, accessibility isn't an afterthought; it’s baked into the component's DNA.
+
+* **The "Headless" Pattern:** Use libraries like **Radix UI** or **Adobe React Aria** to handle the heavy lifting of keyboard navigation, focus traps, and ARIA states. We then wrap these in our own styled components.
+* **Automated Audits:** Integrate **axe-core** into the CI/CD pipeline and Playwright tests.
+* **Contrast Ratios:** Ensure design tokens are pre-validated for WCAG 2.1 AA/AAA compliance during the build step.
+
+---
+
+## 4. Component Patterns: Composition over Configuration
+
+Avoid "Prop-Drilling Hell." Instead of a `Button` with 50 props, use **Composition**.
+
+**Bad (Hard to Scale):**
+`<Card title="Hi" icon="user" showBorder={true} ... />`
+
+**Good (Flexible):**
+
+```javascript
+<Card>
+  <Card.Header>
+    <Icon name="user" />
+    <Typography variant="h3">Hi</Typography>
+  </Card.Header>
+  <Card.Body>Content</Card.Body>
+</Card>
+
+```
+
+---
+
+## 5. Scalability & Distribution
+
+How do we support 50+ teams?
+
+* **Versioning:** Use **Semantic Versioning (SemVer)**. Use "Codemods" (automated migration scripts) to help teams upgrade when you introduce breaking changes.
+* **Documentation:** Deploy a **Storybook** instance. It should include "Playgrounds," accessibility checklists, and copy-pasteable code snippets.
+* **Tree Shaking:** Ensure the library is exported in ESM (ES Modules) so teams only bundle the components they actually use.
+* **Testing Strategy:**
+* **Unit Tests:** Logic and state.
+* **Visual Regression:** (e.g., Chromatic) to catch accidental CSS shifts.
+* **Snapshot Testing:** To track DOM structure changes.
+
+
+
+---
+
+## 6. Governance: The "Federated" Model
+
+A design system dies if it’s a "walled garden."
+
+* **Central Team:** Maintains the core infrastructure and tokens.
+* **Contribution Pipeline:** A clear RFC (Request for Comments) process where product teams can contribute new components or patterns back to the library.
+
+> **SDE3 Pro-Tip:** Mention **Visual Regression Testing** and **Performance Budgets**. If your library adds 200KB to the bundle, it’s a failure. Always optimize for the "Critical Rendering Path."
+
+---
+
